@@ -12,7 +12,10 @@ from langchain.chat_models import ChatOpenAI
 from langchain import PromptTemplate
 from langchain.prompts import ChatPromptTemplate
 import time 
-
+from dotenv import load_dotenv, find_dotenv
+import eyed3
+import pyaudio
+import wave
 
 
 #############--------------- ID and Surveys ------------########################
@@ -75,13 +78,7 @@ def convert_to_audio(video_path, output_directory='./converted_audio'):
     
 # Transcribe audio
 # Take WAV file from downloads and save to converted audio folder
-import os
-from dotenv import load_dotenv, find_dotenv
-import openai
-import eyed3
-import pyaudio
-import wave
-import json
+
 
 # Load API key from .env file
 load_dotenv(find_dotenv()) 
@@ -173,8 +170,7 @@ def transcribe(audio_path):
                 temperature=0.0
             )
             transcribed_clips.append(transcript + '\n')
-            # with open(f'transcript/{file_name}.text', 'a') as txt_file:
-            #     txt_file.write(transcript + '\n')
+
     full_transcript_str = ''.join(transcribed_clips)
    
     messages=[
@@ -199,51 +195,6 @@ def transcribe(audio_path):
 
     message = "Transcription process completed!"
     return transcript_json, message
-# def transcribe_audio(audio_path):
-#     try:
-#         # audio_file = open(audio_path, 'rb')
-#         # v1_transcript = openai.Audio.transcribe(
-#         #     file=audio_file,
-#         #     model="whisper-1",
-#         #     response_format='json',
-#         #     temperature=0.2
-#         # )
-
-#         # Detect language
-#         messages = [
-#             {'role': 'system', 'content': 'You are a robot that is specifically designed to figure out what language a transcript is in. When given a transcript, ONLY return the ISO-639-1 language code. Take your time and think this through.'},
-#             {'role': 'user', 'content': v1_transcript['text'][:100]}
-#         ]
-#         response = openai.ChatCompletion.create(
-#             model='gpt-3.5-turbo-0613',
-#             messages=messages,
-#             temperature=0
-#         )
-#         language = response['choices'][0]['message']['content']
-#         v1_transcript['language'] = language
-
-#         # Display in chat box
-#         message = "Transcription successful."
-#         return v1_transcript, message
-#     except Exception as e:
-#         message = f"An error occurred: {e}"
-#         return None, message
-
-
-# Save the transcript
-# def save_transcript(transcript, audio_path, output_directory='./transcripts'):
-#     try:
-#         transcript_filename = f"{os.path.basename(audio_path).split('.')[0]}"
-#         if not os.path.exists(output_directory):
-#             os.makedirs(output_directory)
-#         json_path = os.path.join(output_directory, f'{transcript_filename}.json')
-#         with open(json_path, 'w') as json_file:
-#             json.dump(transcript, json_file)
-#         message = 'Transcript saved successfully.'
-#         return json_path, message
-#     except Exception as e:
-#         message = f"An error occurred: {e}"
-#         return None, message
 
 #############--------------- Teacher ------------########################
 # Function to get plain English word for language code
