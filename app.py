@@ -55,6 +55,7 @@ def download_video(url, output_directory='./downloads'):
         return os.path.join(output_directory, video.default_filename), 'Video downloaded successfully.'
     except Exception as e:
         message = f'An error occurred: {e}'
+        
         return None, message
 
 # Convert video to audio
@@ -85,6 +86,9 @@ import json
 # Load API key from .env file
 load_dotenv(find_dotenv()) 
 openai.api_key = os.getenv('OPENAI_API_KEY')
+# Load the API key
+
+
 
 # Split long audio files into clips to be processed by Whisper API
 def split_audio_pyaudio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
@@ -244,7 +248,8 @@ def transcribe(audio_path):
 #############--------------- Teacher ------------########################
 # Function to get plain English word for language code
 def get_language_word(language, openai_api_key=''):
-    llm = OpenAI(model_name='gpt-3.5-turbo-0613', openai_api_key=openai_api_key, temperature=0)
+    llm = OpenAI(model_name='gpt-3.5-turbo-0613', openai_api_key=st.session_state.api_key, temperature=0)
+
     template = '''Convert the ISO-639-1 language code into the plain english word for the language. ONLY return the english word for that language, nothing more.
     Here is the language code: {language}  
     Take your time and think this through. Remember only respond with one word, the english word for the language.'''
@@ -263,7 +268,7 @@ def create_lesson_outline(transcript_json, learning_goal='learn new languague', 
     except FileNotFoundError:
         return "Error: 'lesson_format.txt' not found. Please make sure it's in the current working directory."
 
-    chat = ChatOpenAI(temperature=0.2, model='gpt-3.5-turbo-0613', openai_api_key=openai_api_key)
+    chat = ChatOpenAI(temperature=0.2, model='gpt-3.5-turbo-0613', openai_api_key=st.session_state.api_key)
     template_string = '''Create a lesson based on this title ```{title}```, following this transcript ```{transcript_text}```, and following this format ```{lesson_format}```. Keep in mind the student's learning goal ```{learning_goal}``` and the number of words they want to learn```{num_words}```. For context you are making a lesson plan based on the title of an audio clip taken from a youtube video. Again the title of the video is {title}. Take this into account when making the title of the lesson plan and teaching the concept.
     Only output the lesson plan, nothing more'''
     
@@ -308,13 +313,9 @@ def display_chatbox():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-        
-
 ############################## Main Streamlit app #################################
-# Main function
+#Main function
 def main():
-    
-
     # Initialize all session_state variables
     for key, default_value in {
         'access_granted': False,
@@ -328,35 +329,26 @@ def main():
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
-
+            
     st.title('Language Learning AI Tutor')
-    st.text('Please wait a few mins after hitting the "Create Lesson" button')
 
-    # Access Control
-    # Check if the API key is already in the session state
+    # Handle API key at the very top
     if "api_key" not in st.session_state or not st.session_state.api_key:
-        # If the API key is not in the session state, display the input field
-        entered_api_key = st.text_input("Enter your API key:", type='password')
-        openai.api_key = entered_api_key
-        openai_api_key = entered_api_key
-    
-        # Update the session state with the entered API key
+        entered_api_key = st.text_input("Enter your API key:", type='password', key='api_key_input')
         if entered_api_key:
             st.session_state.api_key = entered_api_key
+            openai.api_key = entered_api_key
+            st.write("API key loaded successfully!")
     else:
-        st.write("API key loaded successfully!")
-        # Load the API key:
-        
-
-
-
+        #st.write("API key already in session state.")
+        openai.api_key = st.session_state.api_key
     
-
-
     
     if not st.session_state['access_granted']:
-        entered_id = st.text_input('Enter your unique ID to access the app:')
-
+        
+        # ID input and validation
+        entered_id = st.text_input('Enter your unique ID to access the app:', key='unique_id_input')
+        
         if st.button('Submit ID'):
             unique_ids = load_unique_ids()
             if entered_id in unique_ids:
@@ -375,12 +367,23 @@ def main():
             st.session_state['unique_id'] = new_id
             st.session_state['survey_done'] = False
             st.success(f"New ID generated: {new_id}")
-
+        st.markdown(
+            """
+            ------------------------------------------------------------------------------
+            **Instructions:**
+            - **For All Students:** 
+              - Please enter your API key.
+            - **For First-Time Students:** 
+              - Generate a new ID and keep it safe for future visits.
+            - **For Returning Students:**
+              - Use your existing ID to continue your learning journey.
+            """
+        )
     else:
         if not st.session_state['survey_done']:
             st.subheader('Survey Questions')
-            learning_goal = st.text_input("What's your daily learning goal?")
-            num_words = st.text_input('How many words do you want to learn?')
+            learning_goal = st.text_input("What's your daily learning goal? (ex: 5 minutes, 10 minutes)", key='daily_learning_goal_input')
+            num_words = st.text_input('How many words do you want to learn? (ex: 5, 10, 15)', key='num_words_input')
 
             if st.button('Submit Survey'):
                 answers = {'learning_goal': learning_goal, 'num_words': num_words}
@@ -415,28 +418,51 @@ def main():
 
     # Main chat interface
     if st.session_state.get('show_chat_window', False):
-        # Display previous chat messages
+        st.text('Please wait a few mins after hitting the "Create Lesson" button')
+        # Initialize session state variables if not already initialized
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+      
+        # Display the previous chat history
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
-
-
-
-        user_input = st.chat_input("begin lesson here and ask questions...")
+      
+        # Get user input
+        user_input = st.chat_input("Begin lesson here and ask questions...")
+      
         if user_input:
+            # Append user's message to the session state
             st.session_state.messages.append({"role": "user", "content": user_input})
+        
+            # Display user's message immediately
+            with st.chat_message("user"):
+                st.markdown(user_input)
+
+            # Generate assistant's response
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                full_response = ""
+      
+                # Make the API call and stream the response
+                for response in openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo-0613",  # Replace with your model
+                    messages=[
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.messages
+                    ],
+                    stream=True,
+                ):
+                    # Update the assistant's message as new content arrives
+                    full_response += response.choices[0].delta.get("content", "")
+                    message_placeholder.markdown(full_response + "▌")
             
-            # Ensure that st.session_state.messages is a list with the correct structure
-            if not isinstance(st.session_state.messages, list):
-                st.session_state.messages = []
-            
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo-0613", 
-                messages=st.session_state.messages, 
-                max_tokens=500  # Limit the response to 150 tokens
-            )
-            teacher_response = response.choices[0].message['content'].strip()  # Extract the teacher's response text correctly
-            st.session_state.messages.append({"role": "assistant", "content": teacher_response})
+                message_placeholder.markdown(full_response)
+          
+            # Append assistant's message to the session state
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+
 
 
         # Perform transcription if Transcribe button is clicked
