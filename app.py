@@ -145,41 +145,46 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 #     return clip_list
 
 
-def split_audio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
+import os
+import wave
+
+def split_audio_wave(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
     clip_list = []
     file_name = os.path.basename(audio_path)[:-4]
-    
+
+    if not audio_path.endswith('.wav'):
+        raise ValueError("Only WAV format is supported")
+
     # Determine the total duration of the audio file
-    if audio_path.endswith('.mp3'):
-        audio_file = AudioSegment.from_mp3(audio_path)
-        total_duration = len(audio_file) / 1000  # convert to seconds
-    elif audio_path.endswith('.wav'):
-        with wave.open(audio_path, 'rb') as wf:
-            n_frames = wf.getnframes()
-            framerate = wf.getframerate()
-            total_duration = n_frames / framerate
-    else:
-        raise ValueError("Unsupported audio format")
-    
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    with wave.open(audio_path, 'rb') as wf:
+        n_frames = wf.getnframes()
+        framerate = wf.getframerate()
+        total_duration = n_frames / framerate
+        n_channels = wf.getnchannels()
+        width = wf.getsampwidth()
 
-    clip_number = 1
-    for start_time in range(0, int(total_duration * 1000), int(clip_duration_sec * 1000 - overlap_duration_sec * 1000)):
-        end_time = start_time + clip_duration_sec * 1000
-        if audio_path.endswith('.mp3'):
-            clip = audio_file[start_time:end_time]
-            clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.mp3"
-            clip.export(clip_path, format="mp3")
-        elif audio_path.endswith('.wav'):
-            clip = audio_file[start_time:end_time]
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        clip_number = 1
+        for start_sample in range(0, n_frames, int(clip_duration_sec * framerate - overlap_duration_sec * framerate)):
+            end_sample = start_sample + clip_duration_sec * framerate
+
+            wf.setpos(start_sample)
+            frames = wf.readframes(end_sample - start_sample)
+
             clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.wav"
-            clip.export(clip_path, format="wav")
+            with wave.open(clip_path, 'wb') as wf_clip:
+                wf_clip.setnchannels(n_channels)
+                wf_clip.setsampwidth(width)
+                wf_clip.setframerate(framerate)
+                wf_clip.writeframes(frames)
 
-        clip_list.append(clip_path)
-        clip_number += 1
+            clip_list.append(clip_path)
+            clip_number += 1
 
     return clip_list
+
 
 # Takes WAV audio clips and transcribes them and saves them to JSON
 def transcribe(audio_path):
