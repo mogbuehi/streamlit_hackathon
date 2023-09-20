@@ -183,7 +183,7 @@ def split_audio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output
 
 # Takes WAV audio clips and transcribes them and saves them to JSON
 def transcribe(audio_path):
-    clip_path_list = split_audio_pyaudio(audio_path)
+    clip_path_list = split_audio(audio_path)
     file_name = os.path.basename(audio_path)[:-4]
     transcribed_clips = []
     # Ensure the transcript file is empty to start with
