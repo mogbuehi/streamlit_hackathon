@@ -14,8 +14,9 @@ from langchain.prompts import ChatPromptTemplate
 import time 
 from dotenv import load_dotenv, find_dotenv
 import eyed3
-import pyaudio
+import os
 import wave
+from pydub import AudioSegment
 
 
 #############--------------- ID and Surveys ------------########################
@@ -88,14 +89,70 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 
 # Split long audio files into clips to be processed by Whisper API
-def split_audio_pyaudio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
+# def split_audio_pyaudio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
+#     clip_list = []
+#     file_name = os.path.basename(audio_path)[:-4]
+    
+#     # Determine the total duration of the audio file
+#     if audio_path.endswith('.mp3'):
+#         audio_file = eyed3.load(audio_path)
+#         total_duration = audio_file.info.time_secs
+#     elif audio_path.endswith('.wav'):
+#         with wave.open(audio_path, 'rb') as wf:
+#             n_frames = wf.getnframes()
+#             framerate = wf.getframerate()
+#             total_duration = n_frames / framerate
+#     else:
+#         raise ValueError("Unsupported audio format")
+    
+#     if not os.path.exists(output_folder):
+#         os.makedirs(output_folder)
+
+#     CHUNK = 1024
+#     FORMAT = pyaudio.paInt16
+#     CHANNELS = 2
+#     RATE = 44100
+#     clip_duration_samples = clip_duration_sec * RATE
+#     overlap_samples = overlap_duration_sec * RATE
+    
+#     wf = wave.open(audio_path, 'rb')
+#     p = pyaudio.PyAudio()
+
+#     clip_number = 1
+#     for start_sample in range(0, int(total_duration * RATE), clip_duration_samples - overlap_samples):
+#         frames = []
+
+#         for i in range(0, int(RATE / CHUNK * clip_duration_sec)):
+#             data = wf.readframes(CHUNK)
+#             if not data:
+#                 break
+#             frames.append(data)
+
+#         clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.wav"
+#         wf_clip = wave.open(clip_path, 'wb')
+#         wf_clip.setnchannels(CHANNELS)
+#         wf_clip.setsampwidth(p.get_sample_size(FORMAT))
+#         wf_clip.setframerate(RATE)
+#         wf_clip.writeframes(b''.join(frames))
+#         wf_clip.close()
+
+#         clip_list.append(clip_path)
+#         clip_number += 1
+
+#     wf.close()
+#     p.terminate()
+
+#     return clip_list
+
+
+def split_audio(audio_path, clip_duration_sec=30, overlap_duration_sec=3, output_folder='converted_audio/clips'):
     clip_list = []
     file_name = os.path.basename(audio_path)[:-4]
     
     # Determine the total duration of the audio file
     if audio_path.endswith('.mp3'):
-        audio_file = eyed3.load(audio_path)
-        total_duration = audio_file.info.time_secs
+        audio_file = AudioSegment.from_mp3(audio_path)
+        total_duration = len(audio_file) / 1000  # convert to seconds
     elif audio_path.endswith('.wav'):
         with wave.open(audio_path, 'rb') as wf:
             n_frames = wf.getnframes()
@@ -107,39 +164,20 @@ def split_audio_pyaudio(audio_path, clip_duration_sec=30, overlap_duration_sec=3
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 2
-    RATE = 44100
-    clip_duration_samples = clip_duration_sec * RATE
-    overlap_samples = overlap_duration_sec * RATE
-    
-    wf = wave.open(audio_path, 'rb')
-    p = pyaudio.PyAudio()
-
     clip_number = 1
-    for start_sample in range(0, int(total_duration * RATE), clip_duration_samples - overlap_samples):
-        frames = []
-
-        for i in range(0, int(RATE / CHUNK * clip_duration_sec)):
-            data = wf.readframes(CHUNK)
-            if not data:
-                break
-            frames.append(data)
-
-        clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.wav"
-        wf_clip = wave.open(clip_path, 'wb')
-        wf_clip.setnchannels(CHANNELS)
-        wf_clip.setsampwidth(p.get_sample_size(FORMAT))
-        wf_clip.setframerate(RATE)
-        wf_clip.writeframes(b''.join(frames))
-        wf_clip.close()
+    for start_time in range(0, int(total_duration * 1000), int(clip_duration_sec * 1000 - overlap_duration_sec * 1000)):
+        end_time = start_time + clip_duration_sec * 1000
+        if audio_path.endswith('.mp3'):
+            clip = audio_file[start_time:end_time]
+            clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.mp3"
+            clip.export(clip_path, format="mp3")
+        elif audio_path.endswith('.wav'):
+            clip = audio_file[start_time:end_time]
+            clip_path = f"{output_folder}/{file_name}_clip_{clip_number}.wav"
+            clip.export(clip_path, format="wav")
 
         clip_list.append(clip_path)
         clip_number += 1
-
-    wf.close()
-    p.terminate()
 
     return clip_list
 
